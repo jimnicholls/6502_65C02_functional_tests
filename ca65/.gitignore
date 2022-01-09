@@ -1,0 +1,8 @@
+*.d81
+*.lib
+*.lbl
+*.lst
+*.map
+*.o
+*.prg
+*.zip
