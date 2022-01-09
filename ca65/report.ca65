@@ -1,0 +1,201 @@
+;**** report 6502 funtional test errors to standard I/O ****
+;
+;this include file is part of the 6502 functional tests
+;it is used when you configure report = 1 in the tests
+;
+;to adopt the standard output vectors of your test environment
+;you must modify the rchar and rget subroutines in this include
+;
+;I/O hardware may have to be initialized in report_init
+
+.import start
+.import test_case
+.import data_bss
+.import data_segment
+.importzp zp_bss
+.importzp zpt
+.import return_to_basic
+
+;.include "config.inc"
+
+;print message macro
+.macro  rprt addr
+        .local loop
+        ldx #0
+        lda addr
+loop:
+        jsr rchar
+        inx
+        lda addr,x
+        bne loop
+.endmacro
+
+;initialize I/O as required (example: configure & enable ACIA)
+.export report_init
+.proc   report_init
+        ;nothing to initialize
+        rprt rmsg_start
+        rts
+.endproc
+
+;show stack (with saved registers), zeropage and absolute memory workspace
+;after an error was trapped in the test program
+.export report_error
+.proc   report_error
+;save registers
+        php
+        pha
+        txa
+        pha
+        tya
+        pha
+        cld
+;show stack with index to registers at error
+        rprt rmsg_stack
+        tsx
+        inx
+        lda #1      ;address high
+        jsr rhex
+        txa         ;address low
+        jsr rhex
+rstack: jsr rspace
+        lda $100,x  ;stack data
+        jsr rhex
+        inx
+        bne rstack
+        jsr rcrlf   ;new line
+;show zero page workspace
+        lda #0
+        jsr rhex
+        lda #zpt
+        tax
+        jsr rhex
+rzp:    jsr rspace
+        lda 0,x
+        jsr rhex
+        inx
+        cpx #zp_bss
+        bne rzp
+        jsr rcrlf
+;show absolute workspace
+        lda #<data_segment
+        jsr rhex
+        lda #>data_segment
+        jsr rhex
+        ldx #0
+rabs:   jsr rspace
+        lda data_segment,x
+        jsr rhex
+        inx
+        cpx #>(data_bss-data_segment)
+        bne rabs
+;ask to continue
+        rprt rmsg_cont
+rerr1:  jsr rget
+        cmp #'S'
+        beq rskip
+        cmp #'C'
+        bne rerr1
+;restore registers
+        pla
+        tay
+        pla
+        tax
+        pla
+        plp
+        rts
+;skip the current test
+rskip:  lda #$f0            ;already end of tests?
+        cmp test_case
+        beq rerr1           ;skip is not available
+        ldx #$ff            ;clear stack
+        txs
+        inc test_case       ;next test
+        lda #>start      ;find begin of test
+        sta zpt
+        lda #<start
+        sta zpt+1
+rskipl1:ldy #4              ;search pattern
+rskipl2:lda (zpt),y         ;next byte
+        cmp rmark,y
+        bne rskipnx         ;no match
+        dey
+        bmi rskipf          ;found pattern
+        cpy #1              ;skip immediate value
+        bne rskipl2
+        dey
+        beq rskipl2
+
+rskipnx:inc zpt             ;next RAM location
+        bne rskipl1
+        inc zpt+1
+        bne rskipl1
+
+rskipf: ldy #1              ;pattern found - check test number
+        lda (zpt),y         ;test number
+        cmp #$f0            ;end of last test?
+        beq rskipe          ;ask to rerun all
+        cmp test_case       ;is next test?
+        bne rskipnx         ;continue searching
+rskipe: jmp (zpt)           ;start next test or rerun at end of tests
+
+rmark:  lda #0              ;begin of test search pattern
+        sta test_case
+.endproc
+
+;show test has ended, ask to repeat
+.export report_success
+.proc   report_success
+        rprt rmsg_success
+        jsr rget
+        jmp return_to_basic
+.endproc
+
+;input subroutine
+;get a character from standard input
+;adjust according to the needs in your test environment
+rget:               ;get character in A
+        jsr $ffcf
+        rts
+
+;output subroutines
+rcrlf:  lda #10
+        jsr rchar
+        lda #13
+        bne rchar
+
+rspace: lda #' '
+        bne rchar
+
+rhex:   pha         ;report hex byte in A
+        lsr a       ;high nibble first
+        lsr a
+        lsr a
+        lsr a
+        jsr rnib
+        pla         ;now low nibble
+        and #$f
+
+rnib:   clc         ;report nibble in A
+        adc #'0'    ;make printable 0-9
+        cmp #'9'+1
+        bcc rchar
+        adc #6      ;make printable A-F
+
+;send a character to standard output
+;adjust according to the needs in your test environment
+;register X needs to be preserved!
+rchar:              ;report character in A
+        phx
+        jsr $ffd2   ;example: CHROUT for a C64
+        plx
+        rts
+
+rmsg_start:
+        .byte  13,"STARTED TESTING",13,0
+rmsg_stack:
+        .byte  13,"REGS Y  X  A  PS PCLPCH",13,0
+rmsg_cont:
+        .byte  13,"PRESS C TO CONTINUE OR S TO SKIP CURRENT TEST",13,0
+rmsg_success:
+        .byte  13,"ALL TESTS COMPLETED. PRESS RETURN TO RESET THE MEGA65.",13,0

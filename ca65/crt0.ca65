@@ -1,0 +1,68 @@
+.export         __EXEHDR__: absolute = 1
+.export         __LOADADDR__: absolute = 1
+.export         __STARTUP__: absolute = 1
+
+.import         __MAIN_START__, __MAIN_SIZE__, __ZP_START__
+.import         start
+.export         return_to_basic
+
+
+zpspace = $50
+
+
+; System variables
+init_status     := $1104
+reset_vector    := $fffc
+set_environment := $038d
+
+
+.segment        "LOADADDR"
+        .addr   *+2
+
+
+.segment        "EXEHDR"
+;       .addr   @05
+;       .word   1                                       ; Line number
+;       .byte   $80                                     ; END
+;       .byte   0                                       ; End of BASIC line
+@05:    .addr   @10
+        .word   2                                       ; Line number
+        .byte   $FE, $02, "0"                           ; BANK 0
+        .byte   ":"
+        .byte   $9E                                     ; SYS startup
+        .byte   <(((startup /  1000) .mod 10) + '0')
+        .byte   <(((startup /   100) .mod 10) + '0')
+        .byte   <(((startup /    10) .mod 10) + '0')
+        .byte   <(((startup /     1) .mod 10) + '0')
+        .byte   0                                       ; End of BASIC line
+@10:    .word   0                                       ; BASIC end marker
+
+
+.segment        "STARTUP"
+.proc           startup
+        sei
+        lda     #1                                      ; Don't call BASIC in the kernel's IRQ handler
+        trb     init_status
+        sta     $d030                                   ; Map ROM into $C000-$CFFF
+        lda     #%100000
+        tsb     $d030
+        lda     $01                                     ; … I/O into $D000—$DFFF
+        ora     #%00000101
+        and     #%11111101
+        sta     $1
+        lda     #0                                      ; … bank 0 RAM into $0000 - $BFFF
+        tax
+        tay
+        ldz     #%10000011                              ; … and kernel into $E000—$FFFF
+        jsr     set_environment
+        map
+        eom
+        cli
+        jmp     start
+.endproc
+
+
+.proc           return_to_basic
+        sei
+        jmp     (reset_vector)
+.endproc

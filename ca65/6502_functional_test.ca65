@@ -95,12 +95,12 @@
 ;ROM_vectors writable (0=no, 1=yes)
 ;if ROM vectors can not be used interrupts will not be trapped
 ;as a consequence BRK can not be tested but will be emulated to test RTI
-ROM_vectors = 1
+ROM_vectors = 0
 
 ;load_data_direct (0=move from code segment, 1=load directly)
 ;loading directly is preferred but may not be supported by your platform
 ;0 produces only consecutive object code, 1 is not suitable for a binary image
-load_data_direct = 1
+load_data_direct = 0
 
 ;I_flag behavior (0=force enabled, 1=force disabled, 2=prohibit change, 3=allow
 ;change) 2 requires extra code and is not recommended. SEI & CLI can only be
@@ -110,19 +110,21 @@ I_flag = 3
 ;configure memory - try to stay away from memory used by the system
 ;zero_page memory start address, $50 (80) consecutive Bytes required
 ;                                add 2 if I_flag = 2
-zero_page = $a  
+zero_page = $2
 
 ;data_segment memory start address, $6A (106) consecutive Bytes required
 ; check that this matches the linker configuration file
-data_segment = $200  
-    .if (data_segment & $ff) <> 0
-        .error "low byte of data_segment MUST be $00 !!"
-    .endif
+;ld65 calculates this
+;data_segment = $200
+;    .if (data_segment & $ff) <> 0
+;        .error "low byte of data_segment MUST be $00 !!"
+;    .endif
 
 ;code_segment memory start address, 13kB of consecutive space required
 ;                                   add 2.5 kB if I_flag = 2
 ; check that this matches the linker configuration file
-code_segment = $400  
+;ld65 calculates this
+;code_segment = $400
 
 ;self modifying code may be disabled to allow running in ROM
 ;0=part of the code is self modifying and must reside in RAM
@@ -131,7 +133,7 @@ disable_selfmod = 0
 
 ;report errors through I/O channel (0=use standard self trap loops, 1=include
 ;report.i65 as I/O channel, add 3.5 kB)
-report = 0
+report = 1
 
 ;RAM integrity test option. Checks for undesired RAM writes.
 ;set lowest non RAM or RAM mirror address page (-1=disable, 0=64k, $40=16k)
@@ -140,7 +142,13 @@ ram_top = -1
 
 ;disable test decimal mode ADC & SBC, 0=enable, 1=disable,
 ;2=disable including decimal flag in processor status
-disable_decimal = 0
+disable_decimal = 2
+
+; E N D   O F   C O N F I G U R A T I O N
+
+.if report = 1
+.include "report.inc"
+.endif
 
 ;macros for error & success traps to allow user modification
 ;example:
@@ -621,8 +629,6 @@ test_num .set test_num + 1
             .endmacro
 
         .ZEROPAGE
-		.res zero_page, 0
-        .org zero_page
 
 ;break test interrupt save
 irq_a:  .res    1,0             ;a register
@@ -632,6 +638,7 @@ irq_x:  .res    1,0             ;x register
 flag_I_on:  .res    1,0         ;or mask to load flags
 flag_I_off: .res    1,0         ;and mask to load flags
     .endif
+.exportzp zpt
 zpt:                        ;5 bytes store/modify test area
 ;add/subtract operand generation and result/flag prediction
 adfc:   .res    1,0             ;carry flag before op
@@ -641,6 +648,7 @@ adrl:   .res    1,0             ;expected result bits 0-7
 adrh:   .res    1,0             ;expected result bit 8 (carry)
 adrf:   .res    1,0             ;expected flags NV0000ZC (only binary mode)
 sb2:    .res    1,0             ;operand 2 complemented for subtract
+.exportzp zp_bss
 zp_bss:
 zp1:    .byte   $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 zp7f:   .byte   $7f             ;test pattern for compare  
@@ -680,8 +688,10 @@ sbiy2:  .word   sba2-$ff
 zp_bss_end:
    
         .DATA
-        .org data_segment
+.export data_segment
+data_segment:
 
+.export test_case
 test_case:  .res    1,0         ;current test number
 ram_chksm:  .res    2,0         ;checksum for RAM integrity test
 ;add/subtract operand copy - abs tests write area
@@ -689,6 +699,7 @@ abst:                       ;5 bytes store/modify test area
 ada2:   .res    1,0             ;operand 2
 sba2:   .res    1,0             ;operand 2 complemented for subtract
         .res    3,0             ;fill remaining bytes
+.export data_bss
 data_bss:
     .if load_data_direct = 1
 ex_andi:and #0              ;execute immediate opcodes
@@ -743,8 +754,11 @@ data_bss_end:
 
 
         .CODE
-        .org code_segment
         .P02            ; disable 65SC02, 65C02 and 65816 instructions
+.export code_segment
+code_segment:
+
+.export start
 start:  cld
         ldx #$ff
         txs
@@ -5835,10 +5849,7 @@ test_far:
         jmp far_ret
 
 ; target for the jump indirect test
-;       .align 2
-        .if * & 1       ; workaround for problems with .align 2
-            .byte 0     ;
-        .endif          ;
+        .byte   0
 ptr_tst_ind:
         .word   test_ind
 ptr_ind_ret:
@@ -6009,10 +6020,6 @@ break2:                 ;BRK pass 2
         trap            ;runover protection
         jmp start       ;catastrophic error - cannot continue
 
-    .if report = 1
-        include "report.i65"
-    .endif
-
 ;copy of data to initialize BSS segment
     .if load_data_direct <> 1
 zp_init:
@@ -6098,13 +6105,13 @@ absEOa_:.byte   $ff,$f0,$f0,$0f ;test pattern for EOR
 ;logical results
 absrlo_:.byte   0,$ff,$7f,$80
 absflo_:.byte   fz,fn,0,fn
-data_end
+data_end:
     .if (data_end - data_init) <> (data_bss_end - data_bss)
         ;force assembler error if size is different
         .error "mismatch between bss and data"
     .endif
 
-vec_init
+vec_init:
         .word   nmi_trap
         .word   res_trap
         .word   irq_trap
@@ -6113,7 +6120,6 @@ vec_bss equ $fffa
 
     .if (load_data_direct = 1) & (ROM_vectors = 1)
         .segment "VECTORS"
-        .org $fffa       ;vectors
         .word   nmi_trap
         .word   res_trap
         .word   irq_trap
