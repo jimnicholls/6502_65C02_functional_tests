@@ -1,7 +1,7 @@
 ;
 ; 6 5 0 2   F U N C T I O N A L   T E S T
 ;
-; Copyright (C) 2012-2015  Klaus Dormann
+; Copyright (C) 2012-2020  Klaus Dormann
 ;
 ; This program is free software: you can redistribute it and/or modify
 ; it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@
 ; addressing modes with focus on propper setting of the processor status
 ; register bits.
 ; 
-; version 01-aug-2019
+; version 05-jan-2020
 ; contact info at http://2m5.de or email K@2m5.de
 ;
 ; assembled with CA65, linked with LD65 (cc65.github.io):
@@ -88,7 +88,8 @@
 ;   04-dec-2017  fixed BRK only tested with interrupts enabled
 ;                added option to skip the remainder of a failing test
 ;                in report.i65
-
+;   05-jan-2020  fixed shifts not testing zero result and flag when last 1-bit
+;                is shifted out
 
 ; C O N F I G U R A T I O N
 
@@ -108,11 +109,11 @@ load_data_direct = 0
 I_flag = 3
 
 ;configure memory - try to stay away from memory used by the system
-;zero_page memory start address, $50 (80) consecutive Bytes required
+;zero_page memory start address, $52 (82) consecutive Bytes required
 ;                                add 2 if I_flag = 2
 zero_page = $2
 
-;data_segment memory start address, $6A (106) consecutive Bytes required
+;data_segment memory start address, $7B (123) consecutive Bytes required
 ; check that this matches the linker configuration file
 ;ld65 calculates this
 ;data_segment = $200
@@ -120,7 +121,7 @@ zero_page = $2
 ;        .error "low byte of data_segment MUST be $00 !!"
 ;    .endif
 
-;code_segment memory start address, 13kB of consecutive space required
+;code_segment memory start address, 13.1kB of consecutive space required
 ;                                   add 2.5 kB if I_flag = 2
 ; check that this matches the linker configuration file
 ;ld65 calculates this
@@ -639,7 +640,7 @@ flag_I_on:  .res    1,0         ;or mask to load flags
 flag_I_off: .res    1,0         ;and mask to load flags
     .endif
 .exportzp zpt
-zpt:                        ;5 bytes store/modify test area
+zpt:                        ;6 bytes store/modify test area
 ;add/subtract operand generation and result/flag prediction
 adfc:   .res    1,0             ;carry flag before op
 ad1:    .res    1,0             ;operand 1 - accumulator
@@ -650,6 +651,7 @@ adrf:   .res    1,0             ;expected flags NV0000ZC (only binary mode)
 sb2:    .res    1,0             ;operand 2 complemented for subtract
 .exportzp zp_bss
 zp_bss:
+zps:    .byte   $80,1           ;additional shift pattern to test zero result & flag
 zp1:    .byte   $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 zp7f:   .byte   $7f             ;test pattern for compare  
 ;logical zeropage operands
@@ -695,10 +697,10 @@ data_segment:
 test_case:  .res    1,0         ;current test number
 ram_chksm:  .res    2,0         ;checksum for RAM integrity test
 ;add/subtract operand copy - abs tests write area
-abst:                       ;5 bytes store/modify test area
+abst:                           ;6 bytes store/modify test area
 ada2:   .res    1,0             ;operand 2
 sba2:   .res    1,0             ;operand 2 complemented for subtract
-        .res    3,0             ;fill remaining bytes
+        .res    4,0             ;fill remaining bytes
 .export data_bss
 data_bss:
     .if load_data_direct = 1
@@ -719,34 +721,35 @@ ex_orai:.res    3
 ex_adci:.res    3
 ex_sbci:.res    3
     .endif
+;zps    .byte   $80,1           ;additional shift patterns test zero result & flag
 abs1:   .byte   $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f:  .byte   $7f             ;test pattern for compare
 ;loads
-fLDx:   .byte   fn,fn,0,fz      ;expected flags for load
+fLDx:   .byte   fn,fn,0,fz              ;expected flags for load
 ;shifts
-rASL:                       ;expected result ASL & ROL -carry
-rROL:   .byte   $86,$04,$82,0   ; "
-rROLc:  .byte   $87,$05,$83,1   ;expected result ROL +carry
-rLSR:                       ;expected result LSR & ROR -carry
-rROR:   .byte   $61,$41,$20,0   ; "
-rRORc:  .byte   $e1,$c1,$a0,$80 ;expected result ROR +carry
-fASL:                       ;expected flags for shifts
-fROL:   .byte   fnc,fc,fn,fz    ;no carry in
-fROLc:  .byte   fnc,fc,fn,0     ;carry in
+rASL:                                   ;expected result ASL & ROL -carry
+rROL:   .byte   0,2,$86,$04,$82,0
+rROLc:  .byte   1,3,$87,$05,$83,1       ;expected result ROL +carry
+rLSR:                                   ;expected result LSR & ROR -carry
+rROR:   .byte   40,0,$61,$41,$20,0
+rRORc:  .byte   $c0,$80,$e1,$c1,$a0,$80 ;expected result ROR +carry
+fASL:                                   ;expected flags for shifts
+fROL:   .byte   fzc,0,fnc,fc,fn,fz      ;no carry in
+fROLc:  .byte   fc,0,fnc,fc,fn,0        ;carry in
 fLSR:
-fROR:   .byte   fc,0,fc,fz      ;no carry in
-fRORc:  .byte   fnc,fn,fnc,fn   ;carry in
+fROR:   .byte   0,fzc,fc,0,fc,fz        ;no carry in
+fRORc:  .byte   fn,fnc,fnc,fn,fnc,fn    ;carry in
 ;increments (decrements)
-rINC:   .byte   $7f,$80,$ff,0,1 ;expected result for INC/DEC
-fINC:   .byte   0,fn,fn,fz,0    ;expected flags for INC/DEC
+rINC:   .byte   $7f,$80,$ff,0,1         ;expected result for INC/DEC
+fINC:   .byte   0,fn,fn,fz,0            ;expected flags for INC/DEC
 ;logical memory operand
-absOR:  .byte   0,$1f,$71,$80   ;test pattern for OR
-absAN:  .byte   $0f,$ff,$7f,$80 ;test pattern for AND
-absEO:  .byte   $ff,$0f,$8f,$8f ;test pattern for EOR
+absOR:  .byte   0,$1f,$71,$80           ;test pattern for OR
+absAN:  .byte   $0f,$ff,$7f,$80         ;test pattern for AND
+absEO:  .byte   $ff,$0f,$8f,$8f         ;test pattern for EOR
 ;logical accu operand
-absORa: .byte   0,$f1,$1f,0     ;test pattern for OR
-absANa: .byte   $f0,$ff,$ff,$ff ;test pattern for AND
-absEOa: .byte   $ff,$f0,$f0,$0f ;test pattern for EOR
+absORa: .byte   0,$f1,$1f,0             ;test pattern for OR
+absANa: .byte   $f0,$ff,$ff,$ff         ;test pattern for AND
+absEOa: .byte   $ff,$f0,$f0,$0f         ;test pattern for EOR
 ;logical results
 absrlo: .byte   0,$ff,$7f,$80
 absflo: .byte   fz,fn,0,fn
@@ -4098,91 +4101,91 @@ tstay6: lda abst,y
 
 ; testing shifts - ASL LSR ROL ROR all addressing modes
 ; shifts - accumulator
-        ldx #3
+        ldx #5
 tasl:
-        set_ax zp1,0
+        set_ax zps,0
         asl a
         tst_ax rASL,fASL,0
         dex
         bpl tasl
-        ldx #3
+        ldx #5
 tasl1:
-        set_ax zp1,$ff
+        set_ax zps,$ff
         asl a
         tst_ax rASL,fASL,$ff-fnzc
         dex
         bpl tasl1
 
-        ldx #3
+        ldx #5
 tlsr:
-        set_ax zp1,0
+        set_ax zps,0
         lsr a
         tst_ax rLSR,fLSR,0
         dex
         bpl tlsr
-        ldx #3
+        ldx #5
 tlsr1:
-        set_ax zp1,$ff
+        set_ax zps,$ff
         lsr a
         tst_ax rLSR,fLSR,$ff-fnzc
         dex
         bpl tlsr1
 
-        ldx #3
+        ldx #5
 trol:
-        set_ax zp1,0
+        set_ax zps,0
         rol a
         tst_ax rROL,fROL,0
         dex
         bpl trol
-        ldx #3
+        ldx #5
 trol1:
-        set_ax zp1,$ff-fc
+        set_ax zps,$ff-fc
         rol a
         tst_ax rROL,fROL,$ff-fnzc
         dex
         bpl trol1
 
-        ldx #3
+        ldx #5
 trolc:
-        set_ax zp1,fc
+        set_ax zps,fc
         rol a
         tst_ax rROLc,fROLc,0
         dex
         bpl trolc
-        ldx #3
+        ldx #5
 trolc1:
-        set_ax zp1,$ff
+        set_ax zps,$ff
         rol a
         tst_ax rROLc,fROLc,$ff-fnzc
         dex
         bpl trolc1
 
-        ldx #3
+        ldx #5
 tror:
-        set_ax zp1,0
+        set_ax zps,0
         ror a
         tst_ax rROR,fROR,0
         dex
         bpl tror
-        ldx #3
+        ldx #5
 tror1:
-        set_ax zp1,$ff-fc
+        set_ax zps,$ff-fc
         ror a
         tst_ax rROR,fROR,$ff-fnzc
         dex
         bpl tror1
 
-        ldx #3
+        ldx #5
 trorc:
-        set_ax zp1,fc
+        set_ax zps,fc
         ror a
         tst_ax rRORc,fRORc,0
         dex
         bpl trorc
-        ldx #3
+        ldx #5
 trorc1:
-        set_ax zp1,$ff
+        set_ax zps,$ff
         ror a
         tst_ax rRORc,fRORc,$ff-fnzc
         dex
@@ -4190,91 +4193,91 @@ trorc1:
         next_test
 
 ; shifts - zeropage
-        ldx #3
+        ldx #5
 tasl2:
-        set_z zp1,0
+        set_z zps,0
         asl zpt
         tst_z rASL,fASL,0
         dex
         bpl tasl2
-        ldx #3
+        ldx #5
 tasl3:
-        set_z zp1,$ff
+        set_z zps,$ff
         asl zpt
         tst_z rASL,fASL,$ff-fnzc
         dex
         bpl tasl3
 
-        ldx #3
+        ldx #5
 tlsr2:
-        set_z zp1,0
+        set_z zps,0
         lsr zpt
         tst_z rLSR,fLSR,0
         dex
         bpl tlsr2
-        ldx #3
+        ldx #5
 tlsr3:
-        set_z zp1,$ff
+        set_z zps,$ff
         lsr zpt
         tst_z rLSR,fLSR,$ff-fnzc
         dex
         bpl tlsr3
 
-        ldx #3
+        ldx #5
 trol2:
-        set_z zp1,0
+        set_z zps,0
         rol zpt
         tst_z rROL,fROL,0
         dex
         bpl trol2
-        ldx #3
+        ldx #5
 trol3:
-        set_z zp1,$ff-fc
+        set_z zps,$ff-fc
         rol zpt
         tst_z rROL,fROL,$ff-fnzc
         dex
         bpl trol3
 
-        ldx #3
+        ldx #5
 trolc2:
-        set_z zp1,fc
+        set_z zps,fc
         rol zpt
         tst_z rROLc,fROLc,0
         dex
         bpl trolc2
-        ldx #3
+        ldx #5
 trolc3:
-        set_z zp1,$ff
+        set_z zps,$ff
         rol zpt
         tst_z rROLc,fROLc,$ff-fnzc
         dex
         bpl trolc3
 
-        ldx #3
+        ldx #5
 tror2:
-        set_z zp1,0
+        set_z zps,0
         ror zpt
         tst_z rROR,fROR,0
         dex
         bpl tror2
-        ldx #3
+        ldx #5
 tror3:
-        set_z zp1,$ff-fc
+        set_z zps,$ff-fc
         ror zpt
         tst_z rROR,fROR,$ff-fnzc
         dex
         bpl tror3
 
-        ldx #3
+        ldx #5
 trorc2:
-        set_z zp1,fc
+        set_z zps,fc
         ror zpt
         tst_z rRORc,fRORc,0
         dex
         bpl trorc2
-        ldx #3
+        ldx #5
 trorc3:
-        set_z zp1,$ff
+        set_z zps,$ff
         ror zpt
         tst_z rRORc,fRORc,$ff-fnzc
         dex
@@ -4282,91 +4285,91 @@ trorc3:
         next_test
 
 ; shifts - absolute
-        ldx #3
+        ldx #5
 tasl4:
-        set_abs zp1,0
+        set_abs zps,0
         asl abst
         tst_abs rASL,fASL,0
         dex
         bpl tasl4
-        ldx #3
+        ldx #5
 tasl5:
-        set_abs zp1,$ff
+        set_abs zps,$ff
         asl abst
         tst_abs rASL,fASL,$ff-fnzc
         dex
         bpl tasl5
 
-        ldx #3
+        ldx #5
 tlsr4:
-        set_abs zp1,0
+        set_abs zps,0
         lsr abst
         tst_abs rLSR,fLSR,0
         dex
         bpl tlsr4
-        ldx #3
+        ldx #5
 tlsr5:
-        set_abs zp1,$ff
+        set_abs zps,$ff
         lsr abst
         tst_abs rLSR,fLSR,$ff-fnzc
         dex
         bpl tlsr5
 
-        ldx #3
+        ldx #5
 trol4:
-        set_abs zp1,0
+        set_abs zps,0
         rol abst
         tst_abs rROL,fROL,0
         dex
         bpl trol4
-        ldx #3
+        ldx #5
 trol5:
-        set_abs zp1,$ff-fc
+        set_abs zps,$ff-fc
         rol abst
         tst_abs rROL,fROL,$ff-fnzc
         dex
         bpl trol5
 
-        ldx #3
+        ldx #5
 trolc4:
-        set_abs zp1,fc
+        set_abs zps,fc
         rol abst
         tst_abs rROLc,fROLc,0
         dex
         bpl trolc4
-        ldx #3
+        ldx #5
 trolc5:
-        set_abs zp1,$ff
+        set_abs zps,$ff
         rol abst
         tst_abs rROLc,fROLc,$ff-fnzc
         dex
         bpl trolc5
 
-        ldx #3
+        ldx #5
 tror4:
-        set_abs zp1,0
+        set_abs zps,0
         ror abst
         tst_abs rROR,fROR,0
         dex
         bpl tror4
-        ldx #3
+        ldx #5
 tror5:
-        set_abs zp1,$ff-fc
+        set_abs zps,$ff-fc
         ror abst
         tst_abs rROR,fROR,$ff-fnzc
         dex
         bpl tror5
 
-        ldx #3
+        ldx #5
 trorc4:
-        set_abs zp1,fc
+        set_abs zps,fc
         ror abst
         tst_abs rRORc,fRORc,0
         dex
         bpl trorc4
-        ldx #3
+        ldx #5
 trorc5:
-        set_abs zp1,$ff
+        set_abs zps,$ff
         ror abst
         tst_abs rRORc,fRORc,$ff-fnzc
         dex
@@ -4374,91 +4377,91 @@ trorc5:
         next_test
 
 ; shifts - zp indexed
-        ldx #3
+        ldx #5
 tasl6:
-        set_zx zp1,0
+        set_zx zps,0
         asl zpt,x
         tst_zx rASL,fASL,0
         dex
         bpl tasl6
-        ldx #3
+        ldx #5
 tasl7:
-        set_zx zp1,$ff
+        set_zx zps,$ff
         asl zpt,x
         tst_zx rASL,fASL,$ff-fnzc
         dex
         bpl tasl7
 
-        ldx #3
+        ldx #5
 tlsr6:
-        set_zx zp1,0
+        set_zx zps,0
         lsr zpt,x
         tst_zx rLSR,fLSR,0
         dex
         bpl tlsr6
-        ldx #3
+        ldx #5
 tlsr7:
-        set_zx zp1,$ff
+        set_zx zps,$ff
         lsr zpt,x
         tst_zx rLSR,fLSR,$ff-fnzc
         dex
         bpl tlsr7
 
-        ldx #3
+        ldx #5
 trol6:
-        set_zx zp1,0
+        set_zx zps,0
         rol zpt,x
         tst_zx rROL,fROL,0
         dex
         bpl trol6
-        ldx #3
+        ldx #5
 trol7:
-        set_zx zp1,$ff-fc
+        set_zx zps,$ff-fc
         rol zpt,x
         tst_zx rROL,fROL,$ff-fnzc
         dex
         bpl trol7
 
-        ldx #3
+        ldx #5
 trolc6:
-        set_zx zp1,fc
+        set_zx zps,fc
         rol zpt,x
         tst_zx rROLc,fROLc,0
         dex
         bpl trolc6
-        ldx #3
+        ldx #5
 trolc7:
-        set_zx zp1,$ff
+        set_zx zps,$ff
         rol zpt,x
         tst_zx rROLc,fROLc,$ff-fnzc
         dex
         bpl trolc7
 
-        ldx #3
+        ldx #5
 tror6:
-        set_zx zp1,0
+        set_zx zps,0
         ror zpt,x
         tst_zx rROR,fROR,0
         dex
         bpl tror6
-        ldx #3
+        ldx #5
 tror7:
-        set_zx zp1,$ff-fc
+        set_zx zps,$ff-fc
         ror zpt,x
         tst_zx rROR,fROR,$ff-fnzc
         dex
         bpl tror7
 
-        ldx #3
+        ldx #5
 trorc6:
-        set_zx zp1,fc
+        set_zx zps,fc
         ror zpt,x
         tst_zx rRORc,fRORc,0
         dex
         bpl trorc6
-        ldx #3
+        ldx #5
 trorc7:
-        set_zx zp1,$ff
+        set_zx zps,$ff
         ror zpt,x
         tst_zx rRORc,fRORc,$ff-fnzc
         dex
@@ -4466,91 +4469,91 @@ trorc7:
         next_test
 
 ; shifts - abs indexed
-        ldx #3
+        ldx #5
 tasl8:
-        set_absx zp1,0
+        set_absx zps,0
         asl abst,x
         tst_absx rASL,fASL,0
         dex
         bpl tasl8
-        ldx #3
+        ldx #5
 tasl9:
-        set_absx zp1,$ff
+        set_absx zps,$ff
         asl abst,x
         tst_absx rASL,fASL,$ff-fnzc
         dex
         bpl tasl9
 
-        ldx #3
+        ldx #5
 tlsr8:
-        set_absx zp1,0
+        set_absx zps,0
         lsr abst,x
         tst_absx rLSR,fLSR,0
         dex
         bpl tlsr8
-        ldx #3
+        ldx #5
 tlsr9:
-        set_absx zp1,$ff
+        set_absx zps,$ff
         lsr abst,x
         tst_absx rLSR,fLSR,$ff-fnzc
         dex
         bpl tlsr9
 
-        ldx #3
+        ldx #5
 trol8:
-        set_absx zp1,0
+        set_absx zps,0
         rol abst,x
         tst_absx rROL,fROL,0
         dex
         bpl trol8
-        ldx #3
+        ldx #5
 trol9:
-        set_absx zp1,$ff-fc
+        set_absx zps,$ff-fc
         rol abst,x
         tst_absx rROL,fROL,$ff-fnzc
         dex
         bpl trol9
 
-        ldx #3
+        ldx #5
 trolc8:
-        set_absx zp1,fc
+        set_absx zps,fc
         rol abst,x
         tst_absx rROLc,fROLc,0
         dex
         bpl trolc8
-        ldx #3
+        ldx #5
 trolc9:
-        set_absx zp1,$ff
+        set_absx zps,$ff
         rol abst,x
         tst_absx rROLc,fROLc,$ff-fnzc
         dex
         bpl trolc9
 
-        ldx #3
+        ldx #5
 tror8:
-        set_absx zp1,0
+        set_absx zps,0
         ror abst,x
         tst_absx rROR,fROR,0
         dex
         bpl tror8
-        ldx #3
+        ldx #5
 tror9:
-        set_absx zp1,$ff-fc
+        set_absx zps,$ff-fc
         ror abst,x
         tst_absx rROR,fROR,$ff-fnzc
         dex
         bpl tror9
 
-        ldx #3
+        ldx #5
 trorc8:
-        set_absx zp1,fc
+        set_absx zps,fc
         ror abst,x
         tst_absx rRORc,fRORc,0
         dex
         bpl trorc8
-        ldx #3
+        ldx #5
 trorc9:
-        set_absx zp1,$ff
+        set_absx zps,$ff
         ror abst,x
         tst_absx rRORc,fRORc,$ff-fnzc
         dex
@@ -6023,6 +6026,7 @@ break2:                 ;BRK pass 2
 ;copy of data to initialize BSS segment
     .if load_data_direct <> 1
 zp_init:
+zps_:   .byte   $80,1           ;additional shift pattern to test zero result & flag
 zp1_:   .byte   $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 zp7f_:  .byte   $7f             ;test pattern for compare
 ;logical zeropage operands
@@ -6074,34 +6078,35 @@ ex_adc_:adc #0              ;execute immediate opcodes
         rts
 ex_sbc_:sbc #0              ;execute immediate opcodes
         rts
+;zps:   .byte   $80,1           ;additional shift patterns test zero result & flag
 abs1_:  .byte   $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
 abs7f_: .byte   $7f             ;test pattern for compare
 ;loads
-fLDx_:  .byte   fn,fn,0,fz      ;expected flags for load
+fLDx_:  .byte   fn,fn,0,fz              ;expected flags for load
 ;shifts
-rASL_:                      ;expected result ASL & ROL -carry
-rROL_:  .byte   $86,$04,$82,0   ; "
-rROLc_: .byte   $87,$05,$83,1   ;expected result ROL +carry
-rLSR_:                      ;expected result LSR & ROR -carry
-rROR_:  .byte   $61,$41,$20,0   ; "
-rRORc_: .byte   $e1,$c1,$a0,$80 ;expected result ROR +carry
-fASL_:                      ;expected flags for shifts
-fROL_:  .byte   fnc,fc,fn,fz    ;no carry in
-fROLc_: .byte   fnc,fc,fn,0     ;carry in
+rASL_:                                  ;expected result ASL & ROL -carry
+rROL_:  .byte   0,2,$86,$04,$82,0
+rROLc_: .byte   1,3,$87,$05,$83,1       ;expected result ROL +carry
+rLSR_:                                  ;expected result LSR & ROR -carry
+rROR_:  .byte   $40,0,$61,$41,$20,0
+rRORc_: .byte   $c0,$80,$e1,$c1,$a0,$80 ;expected result ROR +carry
+fASL_:                                  ;expected flags for shifts
+fROL_:  .byte   fzc,0,fnc,fc,fn,fz      ;no carry in
+fROLc_: .byte   fc,0,fnc,fc,fn,0        ;carry in
 fLSR_:
-fROR_:  .byte   fc,0,fc,fz      ;no carry in
-fRORc_: .byte   fnc,fn,fnc,fn   ;carry in
+fROR_:  .byte   0,fzc,fc,0,fc,fz        ;no carry in
+fRORc_: .byte   fn,fnc,fnc,fn,fnc,fn    ;carry in
 ;increments (decrements)
-rINC_:  .byte   $7f,$80,$ff,0,1 ;expected result for INC/DEC
-fINC_:  .byte   0,fn,fn,fz,0    ;expected flags for INC/DEC
+rINC_:  .byte   $7f,$80,$ff,0,1         ;expected result for INC/DEC
+fINC_:  .byte   0,fn,fn,fz,0            ;expected flags for INC/DEC
 ;logical memory operand
-absOR_: .byte   0,$1f,$71,$80   ;test pattern for OR
-absAN_: .byte   $0f,$ff,$7f,$80 ;test pattern for AND
-absEO_: .byte   $ff,$0f,$8f,$8f ;test pattern for EOR
+absOR_: .byte   0,$1f,$71,$80           ;test pattern for OR
+absAN_: .byte   $0f,$ff,$7f,$80         ;test pattern for AND
+absEO_: .byte   $ff,$0f,$8f,$8f         ;test pattern for EOR
 ;logical accu operand
-absORa_:.byte   0,$f1,$1f,0     ;test pattern for OR
-absANa_:.byte   $f0,$ff,$ff,$ff ;test pattern for AND
-absEOa_:.byte   $ff,$f0,$f0,$0f ;test pattern for EOR
+absORa_:.byte   0,$f1,$1f,0             ;test pattern for OR
+absANa_:.byte   $f0,$ff,$ff,$ff         ;test pattern for AND
+absEOa_:.byte   $ff,$f0,$f0,$0f         ;test pattern for EOR
 ;logical results
 absrlo_:.byte   0,$ff,$7f,$80
 absflo_:.byte   fz,fn,0,fn
