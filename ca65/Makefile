@@ -1,4 +1,5 @@
-TARGETS =	6502_functional_test.prg
+TARGETS =	6502_functional_test.prg \
+			65C02_extended_opcodes_test.prg
 
 .PHONY: all clean
 .SECONDARY:
