@@ -782,6 +782,8 @@ test_num .set 0
     .endif
 
 ;pretest small branch offset
+.export psb
+psb:
         ldx #5
         jmp psb_test
 psb_bwok:
@@ -885,6 +887,8 @@ gcs4:   iny
         next_test
 
     .if disable_selfmod = 0
+.export range
+range:
 ;testing relative addressing with BEQ
         ldy #$fe        ;testing maximum range, not -1/-2 (invalid/self adr)
 range_loop:
@@ -1198,6 +1202,8 @@ range_end:              ;range test successful
         next_test
 
 ;partial test BNE & CMP, CPX, CPY immediate
+.export bne_cmp_cpx_cpy_imm
+bne_cmp_cpx_cpy_imm:
         cpy #1          ;testing BNE true
         bne test_bne
         trap
@@ -1230,8 +1236,10 @@ test_bne:
         trap_cs
         trap_pl
         next_test
-;testing stack operations PHA PHP PLA PLP
 
+;testing stack operations PHA PHP PLA PLP
+.export pha_php_pla_plp
+pha_php_pla_plp:
         ldx #$ff        ;initialize stack
         txs
         lda #$55
@@ -1258,6 +1266,8 @@ test_bne:
         next_test
 
 ;testing branch decisions BPL BMI BVC BVS BCC BCS BNE BEQ
+.export bpl_bmi_bvc_bvs_bcc_bcs_bne_beq
+bpl_bmi_bvc_bvs_bcc_bcs_bne_beq:
         set_stat $ff    ;all on
         bpl nbr1        ;branches should not be taken
         bvc nbr2
@@ -1463,6 +1473,8 @@ brvc8:
         next_test
 
 ; test PHA does not alter flags or accumulator but PLA does
+.export pha_flags
+pha_flags:
         ldx #$55        ;x & y protected
         ldy #$aa
         set_a 1,$ff     ;push
@@ -1508,6 +1520,8 @@ brvc8:
         next_test
 
 ; partial pretest EOR #
+.export pretest_eor_imm
+pretest_eor_imm:
         set_a $3c,0
         eor #$c3
         tst_a $ff,fn
@@ -1518,6 +1532,8 @@ brvc8:
 
 ; PC modifying instructions except branches (NOP, JMP, JSR, RTS, BRK, RTI)
 ; testing NOP
+.export nop_test
+nop_test:
         ldx #$24
         ldy #$42
         set_a $18,0
@@ -1539,6 +1555,8 @@ brvc8:
         next_test
 
 ; jump absolute
+.export jmp_abs
+jmp_abs:
         set_stat $0
         lda #'F'
         ldx #'A'
@@ -1585,6 +1603,8 @@ test_near:
         next_test
 
 ; jump indirect
+.export jmp_ind
+jmp_ind:
         set_stat 0
         lda #'I'
         ldx #'N'
@@ -1616,6 +1636,8 @@ ind_ret:
         next_test
 
 ; jump subroutine & return from subroutine
+.export jsr_rts
+jsr_rts:
         set_stat 0
         lda #'J'
         ldx #'S'
@@ -1643,6 +1665,8 @@ jsr_ret = *-1           ;last address of jsr = return address
         next_test
 
 ; break & return from interrupt
+.export brk_rti
+brk_rti:
     .if ROM_vectors = 1
         load_flag 0     ;with interrupts enabled if allowed!
         pha
@@ -1729,6 +1753,8 @@ brk_ret1:               ;address of break return
         next_test
 
 ; test set and clear flags CLC CLI CLD CLV SEC SEI SED
+.export clc_cli_cld_clv_sec_sei_sed
+clc_cli_cld_clv_sec_sei_sed:
         set_stat $ff
         clc
         tst_stat $ff-carry
@@ -1769,6 +1795,8 @@ brk_ret1:               ;address of break return
         next_test
 ; testing index register increment/decrement and transfer
 ; INX INY DEX DEY TAX TXA TAY TYA
+.export inx_iny_dex_dey_tax_txa_tay_tya
+inx_iny_dex_dey_tax_txa_tay_tya:
         ldx #$fe
         set_stat $ff
         inx             ;ff
@@ -1957,6 +1985,8 @@ brk_ret1:               ;address of break return
 
 ;TSX sets NZ - TXS does not
 ;  This section also tests for proper stack wrap around.
+.export tsx_txs
+tsx_txs:
         ldx #1          ;01
         set_stat $ff
         txs
@@ -2054,6 +2084,8 @@ brk_ret1:               ;address of break return
 
 ; testing index register load & store LDY LDX STY STX all addressing modes
 ; LDX / STX - zp,y / abs,y
+.export ldx_stx_spy_absy
+ldx_stx_spy_absy:
         ldy #3
 tldx:
         set_stat 0
@@ -2154,6 +2186,8 @@ tstx:   lda zpt,y
         next_test
 
 ; indexed wraparound test (only zp should wrap)
+.export ldx_wrap
+ldx_wrap:
         ldy #3+$fa
 tldx4:  ldx <(zp1-$fa),y   ;wrap on indexed zp
         txa
@@ -2183,6 +2217,8 @@ tstx1:  lda zpt,y
         next_test
 
 ; LDY / STY - zp,x / abs,x
+.export ldy_sty_spy_absy
+ldy_sty_spy_absy:
         ldx #3
 tldy:
         set_stat 0
@@ -2283,6 +2319,8 @@ tsty:   lda zpt,x
         next_test
 
 ; indexed wraparound test (only zp should wrap)
+.export sty_wrap
+sty_wrap:
         ldx #3+$fa
 tldy4:  ldy <(zp1-$fa),x   ;wrap on indexed zp
         tya
@@ -2312,6 +2350,8 @@ tsty1:  lda zpt,x
         next_test
 
 ; LDX / STX - zp / abs / #
+.export ldx_stx_zp_abs_imm
+ldx_stx_zp_abs_imm:
         set_stat 0
         ldx zp1
         php         ;test stores do not alter flags
@@ -2702,6 +2742,8 @@ tsty1:  lda zpt,x
         next_test
 
 ; LDY / STY - zp / abs / #
+.export ldy_sty_zp_abs_imm
+ldy_sty_zp_abs_imm:
         set_stat 0
         ldy zp1
         php         ;test stores do not alter flags
@@ -3098,6 +3140,8 @@ tsty1:  lda zpt,x
 
 ; testing load / store accumulator LDA / STA all addressing modes
 ; LDA / STA - zp,x / abs,x
+.export lda_sta_zpx_absx
+lda_sta_zpx_absx:
         ldx #3
 tldax:
         set_stat 0
@@ -3192,6 +3236,8 @@ tstax:  lda zpt,x
         next_test
 
 ; LDA / STA - (zp),y / abs,y / (zp,x)
+.export lda_sta_zpy_absy_zpx
+lda_sta_zpy_absy_zpx:
         ldy #3
 tlday:
         set_stat 0
@@ -3347,6 +3393,8 @@ tstay2: lda abst,y
         next_test
 
 ; indexed wraparound test (only zp should wrap)
+.export lda_sta_wrap
+lda_sta_wrap:
         ldx #3+$fa
 tldax6: lda <(zp1-$fa),x   ;wrap on indexed zp
         sta abst-$fa,x      ;no STX abs,x!
@@ -3430,6 +3478,8 @@ tstay6: lda abst,y
         next_test
 
 ; LDA / STA - zp / abs / #
+.export lda_sta_zp_abs_imm
+lda_sta_zp_abs_imm:
         set_stat 0
         lda zp1
         php         ;test stores do not alter flags
@@ -3773,6 +3823,8 @@ tstay6: lda abst,y
 
 ; testing bit test & compares BIT CPX CPY CMP all addressing modes
 ; BIT - zp / abs
+.export bit_zp_abs
+bit_zp_abs:
         set_a $ff,0
         bit zp1+3   ;00 - should set Z / clear  NV
         tst_a $ff,fz
@@ -3827,6 +3879,8 @@ tstay6: lda abst,y
         next_test
 
 ; CPX - zp / abs / #
+.export cpx_zp_abs_imm
+cpx_zp_abs_imm:
         set_x $80,0
         cpx zp7f
         tst_stat fc
@@ -3886,6 +3940,8 @@ tstay6: lda abst,y
         next_test
 
 ; CPY - zp / abs / #
+.export cpy_zp_abs_imm
+cpy_zp_abs_imm:
         set_y $80,0
         cpy zp7f
         tst_stat fc
@@ -3945,6 +4001,8 @@ tstay6: lda abst,y
         next_test
 
 ; CMP - zp / abs / #
+.export cmp_zp_abs_imm
+cmp_zp_abs_imm:
         set_a $80,0
         cmp zp7f
         tst_a $80,fc
@@ -4103,6 +4161,8 @@ tstay6: lda abst,y
 
 ; testing shifts - ASL LSR ROL ROR all addressing modes
 ; shifts - accumulator
+.export asl_lsr_rol_ror_a
+asl_lsr_rol_ror_a:
         ldx #5
 tasl:
         set_ax zps,0
@@ -4195,6 +4255,8 @@ trorc1:
         next_test
 
 ; shifts - zeropage
+.export asl_lsr_rol_ror_zp
+asl_lsr_rol_ror_zp:
         ldx #5
 tasl2:
         set_z zps,0
@@ -4287,6 +4349,8 @@ trorc3:
         next_test
 
 ; shifts - absolute
+.export asl_lsr_rol_ror_abs
+asl_lsr_rol_ror_abs:
         ldx #5
 tasl4:
         set_abs zps,0
@@ -4379,6 +4443,8 @@ trorc5:
         next_test
 
 ; shifts - zp indexed
+.export asl_lsr_rol_ror_zp_idx
+asl_lsr_rol_ror_zp_idx:
         ldx #5
 tasl6:
         set_zx zps,0
@@ -4471,6 +4537,8 @@ trorc7:
         next_test
 
 ; shifts - abs indexed
+.export asl_lsr_rol_ror_zp_idx
+asl_lsr_rol_ror_abs_idx:
         ldx #5
 tasl8:
         set_absx zps,0
@@ -4564,6 +4632,8 @@ trorc9:
 
 ; testing memory increment/decrement - INC DEC all addressing modes
 ; zeropage
+.export inc_dec_zp
+inc_dec_zp:
         ldx #0
         lda #$7e
         sta zpt
@@ -4623,6 +4693,8 @@ tdec11:
         next_test
 
 ; absolute memory
+.export inc_dec_abs
+inc_dec_abs:
         ldx #0
         lda #$7e
         sta abst
@@ -4682,6 +4754,8 @@ tdec13:
         next_test
 
 ; zeropage indexed
+.export inc_dec_zp_idx
+inc_dec_zp_idx:
         ldx #0
         lda #$7e
 tinc4:  sta zpt,x
@@ -4739,6 +4813,8 @@ tdec15:
         next_test
 
 ; memory indexed
+.export inc_dec_abs_idx
+inc_dec_abs_idx:
         ldx #0
         lda #$7e
 tinc6:  sta abst,x
@@ -4797,6 +4873,8 @@ tdec17:
 
 ; testing logical instructions - AND EOR ORA all addressing modes
 ; AND
+.export and_test
+and_test:
         ldx #3          ;immediate
 tand:   lda zpAN,x
         sta ex_andi+1   ;set AND # operand
@@ -4931,6 +5009,8 @@ tand15:
         next_test
 
 ; EOR
+.export eor_test
+eor_test:
         ldx #3          ;immediate - self modifying code
 teor:   lda zpEO,x
         sta ex_eori+1   ;set EOR # operand
@@ -5065,6 +5145,8 @@ teor15:
         next_test
 
 ; OR
+.export or_test
+or_test:
         ldx #3          ;immediate - self modifying code
 tora:   lda zpOR,x
         sta ex_orai+1   ;set ORA # operand
@@ -5204,6 +5286,8 @@ tora15:
 ; full binary add/subtract test
 ; iterates through all combinations of operands and carry input
 ; uses increments/decrements to predict result & result flags
+.export adc_sbc
+adc_sbc:
         cld
         ldx #ad2        ;for indexed test
         ldy #$ff        ;max range
@@ -5258,6 +5342,8 @@ tadd1:  ora adrh        ;merge C to expected flags
 ;   only valid BCD operands are tested, N V Z flags are ignored
 ; iterates through all valid combinations of operands and carry input
 ; uses increments/decrements to predict result & carry flag
+.export adc_sbc_dm
+adc_sbc_dm:
         sed
         ldx #ad2        ;for indexed test
         ldy #$ff        ;max range
@@ -5339,6 +5425,8 @@ tdad7:
 ; decimal/binary switch test
 ; tests CLD, SED, PLP, RTI to properly switch between decimal & binary opcode
 ;   tables
+.export dec_bin_switch
+dec_bin_switch:
         clc
         cld
         php
@@ -5423,6 +5511,8 @@ bin_rti_ret:
 ; uses increments/decrements to predict result & carry flag
 chkdad:
 ; decimal ADC / SBC zp
+.export abc_sbc_zp_dm
+abc_sbc_zp_dm:
         php             ;save carry for subtract
         lda ad1
         adc ad2         ;perform add
@@ -5446,6 +5536,8 @@ chkdad:
         trap_ne         ;bad flags
         plp
 ; decimal ADC / SBC abs
+.export abc_sbc_abs_dm
+abc_sbc_abs_dm:
         php             ;save carry for subtract
         lda ad1
         adc ada2        ;perform add
@@ -5469,6 +5561,8 @@ chkdad:
         trap_ne         ;bad carry
         plp
 ; decimal ADC / SBC #
+.export abc_sbc_imm_dm
+abc_sbc_imm_dm:
         php             ;save carry for subtract
         lda ad2
         sta ex_adci+1   ;set ADC # operand
@@ -5496,6 +5590,8 @@ chkdad:
         trap_ne         ;bad carry
         plp
 ; decimal ADC / SBC zp,x
+.export abc_sbc_zpx_dm
+abc_sbc_zpx_dm:
         php             ;save carry for subtract
         lda ad1
         adc 0,x         ;perform add
@@ -5519,6 +5615,8 @@ chkdad:
         trap_ne         ;bad carry
         plp
 ; decimal ADC / SBC abs,x
+.export abc_sbc_absx_dm
+abc_sbc_absx_dm:
         php             ;save carry for subtract
         lda ad1
         adc ada2-ad2,x  ;perform add
@@ -5542,6 +5640,8 @@ chkdad:
         trap_ne         ;bad carry
         plp
 ; decimal ADC / SBC abs,y
+.export abc_sbc_absy_dm
+abc_sbc_absy_dm:
         php             ;save carry for subtract
         lda ad1
         adc ada2-$ff,y  ;perform add
@@ -5565,6 +5665,8 @@ chkdad:
         trap_ne         ;bad carry
         plp
 ; decimal ADC / SBC (zp,x)
+.export abc_sbc_ind_zpx_dm
+abc_sbc_ind_zpx_dm:
         php             ;save carry for subtract
         lda ad1
         adc (<adi2-ad2,x) ;perform add
@@ -5588,6 +5690,8 @@ chkdad:
         trap_ne         ;bad carry
         plp
 ; decimal ADC / SBC (abs),y
+.export abc_sbc_ind_absy_dm
+abc_sbc_ind_absy_dm:
         php             ;save carry for subtract
         lda ad1
         adc (adiy2),y   ;perform add
@@ -5616,6 +5720,7 @@ chkdad:
 ; core subroutine of the full binary add/subtract test
 ; iterates through all combinations of operands and carry input
 ; uses increments/decrements to predict result & result flags
+.export chkadd
 chkadd: lda adrf        ;add V-flag if overflow
         and #$83        ;keep N-----ZC / clear V
         pha
@@ -5823,6 +5928,7 @@ ckad1:  pla
 ; target for the jump absolute test
         dey
         dey
+.export test_far
 test_far:
         php             ;either SP or Y count will fail, if we do not hit
         dey
@@ -5857,11 +5963,13 @@ test_far:
         .byte   0
 ptr_tst_ind:
         .word   test_ind
+.export ptr_ind_ret
 ptr_ind_ret:
         .word   ind_ret
         trap            ;runover protection
         dey
         dey
+.export test_ind
 test_ind:
         php             ;either SP or Y count will fail, if we do not hit
         dey
@@ -5897,6 +6005,7 @@ test_ind:
 ; target for the jump subroutine test
         dey
         dey
+.export test_jsr
 test_jsr:
         php             ;either SP or Y count will fail, if we do not hit
         dey
@@ -5936,15 +6045,18 @@ test_jsr:
         jmp start       ;catastrophic error - cannot continue
 
 ;trap in case of unexpected IRQ, NMI, BRK, RESET - BRK test target
+.export nmi_trap
 nmi_trap:
         trap            ;check stack for conditions at NMI
         jmp start       ;catastrophic error - cannot continue
+.export res_trap
 res_trap:
         trap            ;unexpected RESET
         jmp start       ;catastrophic error - cannot continue
 
         dey
         dey
+.export irq_trap
 irq_trap:               ;BRK test or unextpected BRK or IRQ
         php             ;either SP or Y count will fail, if we do not hit
         dey
@@ -6027,6 +6139,7 @@ break2:                 ;BRK pass 2
 
 ;copy of data to initialize BSS segment
     .if load_data_direct <> 1
+.export zp_init
 zp_init:
 zps_:   .byte   $80,1           ;additional shift pattern to test zero result & flag
 zp1_:   .byte   $c3,$82,$41,0   ;test patterns for LDx BIT ROL ROR ASL LSR
