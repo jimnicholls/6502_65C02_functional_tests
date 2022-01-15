@@ -58,6 +58,13 @@ set_environment := $038d
         map
         eom
         cli
+        .pushcpu
+        .setcpu "4510"
+        lda     #0                                      ; Clear the registers
+        tax
+        tay
+        taz                                             ; … particularly the Z register
+        .popcpu
         jmp     start
 .endproc
 
