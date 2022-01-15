@@ -2873,12 +2873,14 @@ irq_trap:               ;BRK test or unextpected BRK or IRQ
         tsx
         cpx #$fc        ;sp -3? (return addr, flags)
         trap_ne
+    .if ROM_vectors = 1
         lda $1ff        ;propper return on stack
         cmp #>brk_ret0
         trap_ne
         lda $1fe
         cmp #<brk_ret0
         trap_ne
+    .endif
         load_flag $ff
         pha
         ldx irq_x
@@ -2907,12 +2909,14 @@ break2:                 ;BRK pass 2
         tsx
         cpx #$fc        ;sp -3? (return addr, flags)
         trap_ne
+    .if ROM_vectors = 1
         lda $1ff        ;propper return on stack
         cmp #>brk_ret1
         trap_ne
         lda $1fe
         cmp #<brk_ret1
         trap_ne
+    .endif
         load_flag intdis
         pha      
         ldx irq_x
