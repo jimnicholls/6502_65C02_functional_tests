@@ -134,6 +134,10 @@ report = 0
 ;leave disabled if a monitor, OS or background interrupt is allowed to alter RAM
 ram_top = -1
 
+;disable test decimal mode ADC & SBC, 0=enable, 1=disable,
+;2=disable including decimal flag in processor status
+disable_decimal = 2
+
 ; E N D   O F   C O N F I G U R A T I O N
         
 ;macros for error & success traps to allow user modification
@@ -259,12 +263,16 @@ fnv     equ minus+overfl
 
 fao     equ break+reserv    ;bits always on after PHP, BRK
 fai     equ fao+intdis      ;+ forced interrupt disable
+faod    equ fao+decmode     ;+ ignore decimal
+faid    equ fai+decmode     ;+ ignore decimal
 m8      equ $ff             ;8 bit mask
 m8i     equ $ff&~intdis     ;8 bit mask - interrupt disable
 
 ;macros to allow masking of status bits.
+;masking test of decimal bit
 ;masking of interrupt enable/disable on load and compare
 ;masking of always on bits after PHP or BRK (unused & break) on compare
+    .if disable_decimal < 2
         .if I_flag = 0
             .macro  load_flag   p1
             lda #p1&m8i          ;force enable interrupts (mask I)
@@ -313,6 +321,64 @@ m8i     equ $ff&~intdis     ;8 bit mask - interrupt disable
             eor #p1|fao         ;invert expected flags + always on bits
             .endmacro
         .endif
+    .else
+        .if I_flag = 0
+            .macro  load_flag   p1
+            lda #p1&m8i         ;force enable interrupts (mask I)
+            .endmacro
+            .macro  cmp_flag    p1
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(p1|faod)&m8i  ;I_flag is always enabled + always on bits
+            .endmacro
+            .macro  eor_flag    p1
+            ora #decmode        ;ignore decimal mode bit
+            eor #(p1&m8i|faod)  ;mask I, invert expected flags + always on bits
+            .endmacro
+        .endif
+        .if I_flag = 1
+            .macro  load_flag   p1
+            lda #p1|intdis      ;force disable interrupts
+            .endmacro
+            .macro  cmp_flag    p1
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(p1|faid)&m8   ;I_flag is always disabled + always on bits
+            .endmacro
+            .macro  eor_flag    p1
+            ora #decmode        ;ignore decimal mode bit
+            eor #(p1|faid)      ;invert expected flags + always on bits + I
+            .endmacro
+        .endif
+        .if I_flag = 2
+            .macro  load_flag   p1
+            lda #p1
+            ora flag_I_on       ;restore I-flag
+            and flag_I_off
+            .endmacro
+            .macro  cmp_flag    p1
+            eor flag_I_on       ;I_flag is never changed
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(p1|faod)&m8i  ;expected flags + always on bits, mask I
+            .endmacro
+            .macro  eor_flag    p1
+            eor flag_I_on       ;I_flag is never changed
+            ora #decmode        ;ignore decimal mode bit
+            eor #(p1&m8i|faod)  ;mask I, invert expected flags + always on bits
+            .endmacro
+        .endif
+        .if I_flag = 3
+            .macro  load_flag   p1
+            lda #p1             ;allow test to change I-flag (no mask)
+            .endmacro
+            .macro  cmp_flag    p1
+            ora #decmode        ;ignore decimal mode bit
+            cmp #(p1|faod)&m8   ;expected flags + always on bits
+            .endmacro
+            .macro  eor_flag    p1
+            ora #decmode        ;ignore decimal mode bit
+            eor #p1|faod        ;invert expected flags + always on bits
+            .endmacro
+        .endif
+    .endif
 
 ;macros to set (register|memory|zeropage) & status
             .macro      set_stat    p1          ;setting flags in the processor status register
@@ -2280,6 +2346,7 @@ tadd1:  ora adrh        ;merge C to expected flags
         tsx
         cpx #$ff
         trap_ne         ;sp push/pop mismatch
+    .if disable_decimal < 1
         next_test
 
 ; decimal add/subtract test
@@ -2385,6 +2452,7 @@ tdad7:  cpx #ad2
         cpx #$ff
         trap_ne         ;sp push/pop mismatch
         cld
+    .endif
 
         lda test_case
         cmp #test_num
@@ -2410,6 +2478,7 @@ tdad7:  cpx #ad2
 ; S U C C E S S ************************************************       
         jmp start       ;run again      
 
+    .if disable_decimal < 1
 ; core subroutine of the decimal add/subtract test
 ; *** WARNING - tests documented behavior only! ***
 ;   only valid BCD operands are tested, V flag is ignored
@@ -2628,6 +2697,7 @@ chkdad:
         trap_ne         ;bad flags
         plp
         rts
+    .endif
 
 ; core subroutine of the full binary add/subtract test
 ; iterates through all combinations of operands and carry input
