@@ -78,9 +78,9 @@ rzp:    jsr rspace
         bne rzp
         jsr rcrlf
 ;show absolute workspace
-        lda #<data_segment
-        jsr rhex
         lda #>data_segment
+        jsr rhex
+        lda #<data_segment
         jsr rhex
         ldx #0
 rabs:   jsr rspace
