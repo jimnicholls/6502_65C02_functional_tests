@@ -733,7 +733,7 @@ rASL:                                   ;expected result ASL & ROL -carry
 rROL:   .byte   0,2,$86,$04,$82,0
 rROLc:  .byte   1,3,$87,$05,$83,1       ;expected result ROL +carry
 rLSR:                                   ;expected result LSR & ROR -carry
-rROR:   .byte   40,0,$61,$41,$20,0
+rROR:   .byte   $40,0,$61,$41,$20,0
 rRORc:  .byte   $c0,$80,$e1,$c1,$a0,$80 ;expected result ROR +carry
 fASL:                                   ;expected flags for shifts
 fROL:   .byte   fzc,0,fnc,fc,fn,fz      ;no carry in
