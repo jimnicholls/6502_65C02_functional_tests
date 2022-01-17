@@ -13,7 +13,7 @@ all: $(TARGETS)
 AS = ca65
 ASFLAGS = --target none --cpu 4510 -W1
 LD = ld65
-LDFLAGS = --config mega65.cfg
+LDFLAGS = --config hyppotest.cfg
 
 %.bin: %.o crt0.o report.o
 	$(LD) $(LDFLAGS) -Ln $*.lbl --mapfile $*.map -o $@ $+
