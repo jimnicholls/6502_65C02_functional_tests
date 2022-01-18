@@ -851,6 +851,8 @@ gcs4:   iny
         next_test            
 
 ;testing stack operations PHX PHY PLX PLY
+.export phx_phy_plx_ply
+phx_phy_plx_ply:
         lda #$99        ;protect a
         ldx #$ff        ;initialize stack
         txs
@@ -900,6 +902,8 @@ gcs4:   iny
         next_test            
         
 ; test PHX does not alter flags or X but PLX does
+.export phx_plx_flags
+phx_plx_flags:
         ldy #$aa        ;protect y
         set_x 1,$ff     ;push
         phx
@@ -942,6 +946,8 @@ gcs4:   iny
         next_test            
  
 ; test PHY does not alter flags or Y but PLY does
+.export phy_ply_flags
+phy_ply_flags:
         ldx #$55        ;x & a protected
         set_y 1,$ff     ;push
         phy
@@ -985,7 +991,8 @@ gcs4:   iny
  
 ; PC modifying instructions (BRA, BBR, BBS, 1, 2, 3 byte NOPs, JMP(abs,x))
 ; testing unconditional branch BRA
-
+.export bra_test
+bra_test:
         ldx #$81        ;protect unused registers
         ldy #$7e
         set_a 0,$ff
@@ -1099,7 +1106,8 @@ bra6:
         
     .if rkwl_wdc_op = 1
 ; testing BBR & BBS
-
+.export bbr_bbs
+bbr_bbs:
         .macro bbr n,b,r
             .if n = 0
                 bbr0 b,r
@@ -1249,7 +1257,8 @@ bbcl:   lda #0
     .endif
     
 ; testing NOP
-
+.export undefined_opcodes_test
+undefined_opcodes_test:
             .macro nop_test opcode, num_bytes
             ldy #$42
             ldx #4-num_bytes
@@ -1379,6 +1388,8 @@ bbcl:   lda #0
     .endif
             
 ; jump indirect (test page cross bug is fixed)
+.export jmp_ind
+jmp_ind:
         ldx #3          ;prepare table
 ji1:    lda ji_adr,x
         sta ji_tab,x
@@ -1417,6 +1428,8 @@ ji_ret: php             ;either SP or Y count will fail, if we do not hit
         next_test
 
 ; jump indexed indirect
+.export jmp_idx_ind
+jmp_idx_ind:
         ldx #11         ;prepare table
 jxi1:   lda jxi_adr,x
         sta jxi_tab,x
@@ -1472,6 +1485,8 @@ jxp_ok:
 
     .if ROM_vectors = 1
 ; test BRK clears decimal mode
+.export brk_test
+brk_test:
         load_flag 0     ;with interrupts enabled if allowed!
         pha
         lda #'B'
@@ -1529,6 +1544,8 @@ brk_ret1:               ;address of break return
     .endif
  
 ; testing accumulator increment/decrement INC A & DEC A
+.export inc_dec
+inc_dec:
         ldx #$ac    ;protect x & y
         ldy #$dc
         set_a $fe,$ff
@@ -1564,6 +1581,8 @@ brk_ret1:               ;address of break return
         next_test
 
 ; testing load / store accumulator LDA / STA (zp)
+.export lda_sta_izp
+lda_sta_izp:
         ldx #$99    ;protect x & y
         ldy #$66
         set_stat 0  
@@ -1717,6 +1736,8 @@ tstai2: lda abst,y
         next_test
 
 ; testing STZ - zp / abs / zp,x / abs,x
+.export stz_zp_abs_zpx_absx
+stz_zp_abs_zpx_absx:
         ldy #123    ;protect y
         ldx #4      ;precharge test area
         lda #7
@@ -1874,6 +1895,8 @@ tstz24: lda abst,x   ;verify zeros stored
         next_test
 
 ; testing BIT - zp,x / abs,x / #
+.export bit_zpx_absx_imm
+bit_zpx_absx_imm:
         ldy #$42
         ldx #3
         set_a $ff,0
@@ -1986,7 +2009,8 @@ tstz24: lda abst,x   ;verify zeros stored
         next_test
 
 ; testing TRB, TSB - zp / abs
-
+.export trb_tsb_zp_abs
+trb_tsb_zp_abs:
         .macro trbt memory, flags
         sty memory
         load_flag flags
@@ -2082,7 +2106,8 @@ tbt2:
 
     .if rkwl_wdc_op = 1
 ; testing RMB, SMB - zp
-
+.export rmb_smb_zp
+rmb_smb_zp:
         .macro rmb n,addr
             .if n = 0
                 rmb0 addr
@@ -2191,7 +2216,9 @@ tbt2:
         next_test
     .endif
          
-; testing CMP - (zp)         
+; testing CMP - (zp)
+.export cmp_izp
+cmp_izp:
         ldx #$de    ;protect x & y
         ldy #$ad
         set_a $80,0
@@ -2222,6 +2249,8 @@ tbt2:
         next_test
 
 ; testing logical instructions - AND EOR ORA (zp)
+.export and_eor_ora_izp
+and_eor_ora_izp:
         ldx #$42    ;protect x & y
 
         ldy #0      ;AND
@@ -2307,6 +2336,8 @@ tora2:
 ; full binary add/subtract test - (zp) only
 ; iterates through all combinations of operands and carry input
 ; uses increments/decrements to predict result & result flags
+.export adc_sbc_izp
+adc_sbc_izp:
         cld
         ldx #ad2        ;for indexed test
         ldy #$ff        ;max range
@@ -2371,6 +2402,8 @@ tadd1:  ora adrh        ;merge C to expected flags
 ;   no use in BCD math. No sign = no overflow!
 ; iterates through all valid combinations of operands and carry input
 ; uses increments/decrements to predict result & carry flag
+.export adc_sbc_izp_dm
+adc_sbc_izp_dm:
         sed 
         ldx #ad2        ;for indexed test
         ldy #$ff        ;max range
@@ -2499,6 +2532,7 @@ tdad7:  cpx #ad2
 ;   only valid BCD operands are tested, V flag is ignored
 ; iterates through all valid combinations of operands and carry input
 ; uses increments/decrements to predict result & carry flag
+.export chkdad
 chkdad:
 ; decimal ADC / SBC zp
         php             ;save carry for subtract
@@ -2717,6 +2751,7 @@ chkdad:
 ; core subroutine of the full binary add/subtract test
 ; iterates through all combinations of operands and carry input
 ; uses increments/decrements to predict result & result flags
+.export chkadd
 chkadd: lda adrf        ;add V-flag if overflow
         and #$83        ;keep N-----ZC / clear V
         pha
@@ -2851,15 +2886,18 @@ trap_ind:
         jmp start       ;catastrophic error - cannot continue
 
 ;trap in case of unexpected IRQ, NMI, BRK, RESET
+.export nmi_trap
 nmi_trap:
         trap            ;check stack for conditions at NMI
         jmp start       ;catastrophic error - cannot continue
+.export res_trap
 res_trap:
         trap            ;unexpected RESET
         jmp start       ;catastrophic error - cannot continue
 
         dey
         dey
+.export irq_trap
 irq_trap:               ;BRK test or unextpected BRK or IRQ
         php             ;either SP or Y count will fail, if we do not hit
         dey
